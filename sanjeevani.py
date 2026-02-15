@@ -608,7 +608,7 @@ tab1, tab2 = st.tabs([" Risk Assessment", " Live Kafka Stream"])
 
 # ── TAB 1: RISK ASSESSMENT ──────────────────────────────────────────────────
 with tab1:
-    st.title("🛡️ Sanjeevani: Pre-Delinquency Intervention Platform")
+    st.title(" Sanjeevani: Pre-Delinquency Intervention Platform")
     st.markdown("### Predict. Explain. Act. Save ₹245 Crores.")
 
     customer_id = st.text_input(" Customer ID", value="CUST_000142")
