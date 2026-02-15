@@ -1,0 +1,24 @@
+{
+  "family": "riskpulse-task",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "1024",
+  "memory": "2048",
+  "executionRoleArn": "arn:aws:iam::052869941443:role/ecsTaskExecutionRole",
+  "containerDefinitions": [
+    {
+      "name": "riskpulse-app",
+      "image": "052869941443.dkr.ecr.ap-south-1.amazonaws.com/riskpulse-ai:latest",
+      "portMappings": [{ "containerPort": 8501, "protocol": "tcp" }],
+      "essential": true,
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/ecs/riskpulse",
+          "awslogs-region": "ap-south-1",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
