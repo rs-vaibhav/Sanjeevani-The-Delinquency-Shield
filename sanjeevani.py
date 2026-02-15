@@ -334,17 +334,9 @@ def load_engine():
 engine = load_engine()
 
 
-# ==========================================
-# 5. KAFKA TAB — wrapped in @st.fragment
-#    This is the KEY FIX:
-#    @st.fragment makes only THIS function
-#    rerun when its widgets change.
-#    The rest of the page (Tab 1) is NEVER
-#    touched — so the tab never jumps.
-# ==========================================
 @st.fragment
 def kafka_tab():
-    st.title("📡 Live Kafka Transaction Stream")
+    st.title(" Live Kafka Transaction Stream")
     st.markdown(
         "Simulates **Apache Kafka** ingesting real-time bank transactions. "
         "Each event is scored by the **Sanjeevani AI** engine (<50ms latency) "
@@ -376,10 +368,10 @@ def kafka_tab():
     # Controls
     ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([1, 1, 1, 1])
     with ctrl1:
-        speed = st.selectbox("⚡ Emit Speed", ["0.5s (Fast)", "1s (Normal)", "2s (Slow)"], index=1)
+        speed = st.selectbox(" Emit Speed", ["0.5s (Fast)", "1s (Normal)", "2s (Slow)"], index=1)
         delay = {"0.5s (Fast)": 0.5, "1s (Normal)": 1.0, "2s (Slow)": 2.0}[speed]
     with ctrl2:
-        risk_filter = st.selectbox("🎯 Risk Profile Mix",
+        risk_filter = st.selectbox(" Risk Profile Mix",
                                    ["All Profiles", "High Risk Heavy", "Critical Only", "Mostly Healthy"])
     with ctrl3:
         batch_size = st.slider("Events per tick", 1, 5, 2)
@@ -409,12 +401,12 @@ def kafka_tab():
     health_ph    = sm4.empty()
     status_ph    = sm5.empty()
     tput_ph      = st.empty()
-    st.markdown("#### 📥 Event Feed")
+    st.markdown("####  Event Feed")
     feed_ph      = st.empty()
 
     def render_static_metrics():
         s = st.session_state.stream_stats
-        stats_ph.metric("📨 Total Events", f"{s['total']:,}")
+        stats_ph.metric("Total Events", f"{s['total']:,}")
         crit_ph.metric("🔴 Critical",      f"{s['critical']:,}")
         watch_ph.metric("🟠 Watchlist",    f"{s['watchlist']:,}")
         health_ph.metric("🟢 Healthy",     f"{s['healthy']:,}")
@@ -435,11 +427,6 @@ def kafka_tab():
         "Mostly Healthy":  {"critical": 0.05, "high": 0.10, "medium": 0.25, "low": 0.60},
     }
 
-    # ── KEY FIX: no blocking for-loop ──────────────────────────────────────
-    # Instead of looping with time.sleep() (which blocks all button clicks),
-    # we do ONE tick per fragment rerun, then call st.rerun() to do the next.
-    # This means Stop/Start buttons can fire between ticks — they always work.
-    # ───────────────────────────────────────────────────────────────────────
 
     if st.session_state.stream_running:
         pw       = PROFILE_WEIGHTS[risk_filter]
@@ -472,7 +459,7 @@ def kafka_tab():
 
         # Update metrics
         s = st.session_state.stream_stats
-        stats_ph.metric("📨 Total Events", f"{s['total']:,}")
+        stats_ph.metric(" Total Events", f"{s['total']:,}")
         crit_ph.metric("🔴 Critical",   f"{s['critical']:,}",
                        delta=f"{s['critical']/max(s['total'],1)*100:.1f}%", delta_color="inverse")
         watch_ph.metric("🟠 Watchlist", f"{s['watchlist']:,}",
@@ -532,34 +519,34 @@ def kafka_tab():
 # ==========================================
 # 6. MAIN LAYOUT — TABS
 # ==========================================
-tab1, tab2 = st.tabs(["🛡️ Risk Assessment", "📡 Live Kafka Stream"])
+tab1, tab2 = st.tabs([" Risk Assessment", " Live Kafka Stream"])
 
 # ── TAB 1: RISK ASSESSMENT ──────────────────────────────────────────────────
 with tab1:
     st.title("🛡️ Sanjeevani: Pre-Delinquency Intervention Platform")
     st.markdown("### Predict. Explain. Act. Save ₹245 Crores.")
 
-    customer_id = st.text_input("🔍 Customer ID", value="CUST_000142")
+    customer_id = st.text_input(" Customer ID", value="CUST_000142")
     st.markdown("---")
 
-    with st.expander("📋 Customer Financial Profile (T-1 Month Data)", expanded=True):
+    with st.expander(" Customer Financial Profile (T-1 Month Data)", expanded=True):
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.markdown("#### 🏦 Income & Stability")
+            st.markdown("####  Income & Stability")
             s_salary  = st.slider("Salary Delay (Days)",  0, 30,    0)
             s_savings = st.slider("Savings Drawdown (%)", 0, 100,  10)
             s_dti     = st.slider("DTI Ratio",            0.0, 1.0, 0.3, 0.01)
             s_util    = st.slider("Utility Late Days",    0, 30,    0)
             s_liq     = st.slider("Liquidity Pressure",   0.0, 10.0, 2.0)
         with c2:
-            st.markdown("#### 💳 Spending Behavior")
+            st.markdown("####  Spending Behavior")
             s_apps   = st.slider("Lending Apps",          0, 10,    0)
             s_cc     = st.slider("Credit Velocity",       0, 100,  20)
             s_atm    = st.slider("ATM Withdrawals",       0, 20,    2)
             s_dining = st.slider("Dining Frequency",      0, 40,   25)
             s_failed = st.slider("Failed Transactions",   0, 10,    0)
         with c3:
-            st.markdown("#### 🚩 Risk Signals")
+            st.markdown("####  Risk Signals")
             s_gamble = st.slider("Gambling Count",        0, 10,    0)
             s_upi    = st.slider("UPI Spike Ratio",       0.0, 5.0, 1.0)
             s_bal    = st.slider("Balance Checks",        0, 20,    2)
@@ -589,7 +576,7 @@ with tab1:
     col_left, col_right = st.columns([1.3, 1])
 
     with col_left:
-        st.subheader("🎯 Risk Severity")
+        st.subheader("Risk Severity")
         fig_gauge = go.Figure(go.Indicator(
             mode="gauge+number+delta", value=data['risk_score'],
             domain={'x': [0, 1], 'y': [0, 1]},
@@ -603,7 +590,7 @@ with tab1:
                                 paper_bgcolor="rgba(0,0,0,0)", font={'color': "white"})
         st.plotly_chart(fig_gauge, use_container_width=True)
 
-        st.subheader("🔍 Risk Drivers")
+        st.subheader(" Risk Drivers")
         if "SHAP" in data['model_type']:
             st.caption("⚡ Powered by SHAP (Game Theoretic Feature Importance)")
         drivers = data['drivers']
@@ -619,14 +606,14 @@ with tab1:
         st.plotly_chart(fig_d, use_container_width=True)
 
     with col_right:
-        st.subheader("💼 Business Value")
+        st.subheader(" Business Value")
         if data['status'] == 'CRITICAL':    st.error(f"**{data['impact_title']}**")
         elif data['status'] == 'WATCHLIST': st.warning(f"**{data['impact_title']}**")
         else:                               st.success(f"**{data['impact_title']}**")
         st.markdown(data['impact_text'])
         st.markdown("---")
 
-        st.subheader("🚀 Intervention")
+        st.subheader(" Intervention")
         inv = data['intervention']
         st.info(f"**Action:** {inv['action']}\n\n**Success Probability:** {inv['success_rate']:.0%}")
         ca, cb = st.columns(2)
@@ -636,7 +623,7 @@ with tab1:
             st.toast(f"✅ Protocol Sent: {inv['action']} for {customer_id}")
 
     st.markdown("---")
-    st.subheader("📊 Portfolio Impact Simulation")
+    st.subheader(" Portfolio Impact Simulation")
     col1, col2 = st.columns(2)
     with col1:
         p_size      = st.number_input("Portfolio Size (Customers)", value=100000, step=10000)
