@@ -293,60 +293,85 @@ if 'metrics' not in st.session_state:
 
 def generate_event():
     """Generate one realistic banking event"""
-    tx_type, _ = random.choices(TRANSACTION_TYPES, weights=[w for _, w in TRANSACTION_TYPES])[0]
-    customer = random.choice(CUSTOMER_POOL)
-    
-    features = {
-        'salary_delay': random.randint(0, 30) if random.random() < 0.3 else 0,
-        'savings_drawdown': random.randint(0, 50),
-        'dti_ratio': round(random.uniform(0.1, 0.8), 2),
-        'utility_late_days': random.randint(0, 10),
-        'liquidity_pressure': round(random.uniform(0, 5), 1),
-        'lending_apps': random.randint(0, 8) if 'LENDING' in tx_type else random.randint(0, 2),
-        'cc_velocity': random.randint(10, 60),
-        'atm_count': random.randint(1, 15),
-        'dining_count': random.randint(5, 30),
-        'failed_tx': random.randint(0, 5) if 'FAILED' in tx_type else 0,
-        'gambling_count': random.randint(1, 8) if 'GAMBLING' in tx_type else 0,
-        'upi_spike_ratio': round(random.uniform(0.5, 3.0), 1),
-        'balance_checks': random.randint(1, 15),
-        'behavioral_stress': round(random.uniform(0, 5), 1),
-        'volatility_risk': round(random.uniform(0, 3), 1),
-    }
-    
-    # Spike risk for certain transaction types
-    if tx_type in ['LENDING_APP_UPI', 'GAMBLING_UPI', 'FAILED_AUTODEBIT']:
-        features['lending_apps'] = min(8, features['lending_apps'] + 3)
-        features['dti_ratio'] = min(0.9, features['dti_ratio'] + 0.2)
-    
-    assessment = engine.get_assessment(features)
-    
-    return {
-        'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
-        'customer_id': customer['id'],
-        'customer_name': customer['name'],
-        'transaction_type': tx_type,
-        'risk_score': assessment['risk_score'],
-        'status': assessment['status'],
-        'features': features,
-        'partition': random.randint(0, 3)
-    }
+    try:
+        tx_type, _ = random.choices(TRANSACTION_TYPES, weights=[w for _, w in TRANSACTION_TYPES])[0]
+        customer = random.choice(CUSTOMER_POOL)
+        
+        features = {
+            'salary_delay': random.randint(0, 30) if random.random() < 0.3 else 0,
+            'savings_drawdown': random.randint(0, 50),
+            'dti_ratio': round(random.uniform(0.1, 0.8), 2),
+            'utility_late_days': random.randint(0, 10),
+            'liquidity_pressure': round(random.uniform(0, 5), 1),
+            'lending_apps': random.randint(0, 8) if 'LENDING' in tx_type else random.randint(0, 2),
+            'cc_velocity': random.randint(10, 60),
+            'atm_count': random.randint(1, 15),
+            'dining_count': random.randint(5, 30),
+            'failed_tx': random.randint(0, 5) if 'FAILED' in tx_type else 0,
+            'gambling_count': random.randint(1, 8) if 'GAMBLING' in tx_type else 0,
+            'upi_spike_ratio': round(random.uniform(0.5, 3.0), 1),
+            'balance_checks': random.randint(1, 15),
+            'behavioral_stress': round(random.uniform(0, 5), 1),
+            'volatility_risk': round(random.uniform(0, 3), 1),
+        }
+        
+        # Spike risk for certain transaction types
+        if tx_type in ['LENDING_APP_UPI', 'GAMBLING_UPI', 'FAILED_AUTODEBIT']:
+            features['lending_apps'] = min(8, features['lending_apps'] + 3)
+            features['dti_ratio'] = min(0.9, features['dti_ratio'] + 0.2)
+        
+        assessment = engine.get_assessment(features)
+        
+        return {
+            'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
+            'customer_id': customer['id'],
+            'customer_name': customer['name'],
+            'transaction_type': tx_type,
+            'risk_score': assessment['risk_score'],
+            'status': assessment['status'],
+            'features': features,
+            'partition': random.randint(0, 3)
+        }
+    except Exception as e:
+        # Return a safe default event if something goes wrong
+        return {
+            'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
+            'customer_id': 'ERROR',
+            'customer_name': 'Error generating event',
+            'transaction_type': 'ERROR',
+            'risk_score': 0,
+            'status': 'HEALTHY',
+            'features': {},
+            'partition': 0
+        }
 
 
 def render_event_card(event, show_json=False):
-    """Render a single event as HTML"""
-    status_class = event['status'].lower()
+    """Render a single event as HTML with safety checks"""
+    # Safety checks for missing keys
+    if not isinstance(event, dict):
+        return "<div class='event-card'>Invalid event format</div>"
+    
+    status = event.get('status', 'UNKNOWN')
+    status_class = status.lower()
     badge_class = 'red' if status_class == 'critical' else ('orange' if status_class == 'watchlist' else '')
     
     json_block = ""
-    if show_json:
+    if show_json and 'features' in event:
         json_block = f"<pre style='margin-top:8px;font-size:0.7rem;'>{json.dumps(event['features'], indent=2)}</pre>"
+    
+    customer_id = event.get('customer_id', 'UNKNOWN')
+    customer_name = event.get('customer_name', 'Unknown Customer')
+    tx_type = event.get('transaction_type', 'UNKNOWN')
+    risk_score = event.get('risk_score', 0)
+    timestamp = event.get('timestamp', '00:00:00')
+    partition = event.get('partition', 0)
     
     return f"""
     <div class="event-card {status_class}">
-        <span class="kafka-badge {badge_class}">{event['status']}</span>
-        <strong>{event['customer_id']}</strong> | {event['customer_name']} | {event['transaction_type']}<br>
-        <span style="color:#888;">Risk: {event['risk_score']:.0f}/100 | {event['timestamp']} | Partition-{event['partition']}</span>
+        <span class="kafka-badge {badge_class}">{status}</span>
+        <strong>{customer_id}</strong> | {customer_name} | {tx_type}<br>
+        <span style="color:#888;">Risk: {risk_score:.0f}/100 | {timestamp} | Partition-{partition}</span>
         {json_block}
     </div>
     """
@@ -400,10 +425,15 @@ def kafka_tab():
         total_ph.metric("Total Processed", f"{m['total_processed']:,}")
     
     def render_feed():
-        feed_ph.markdown(
-            "".join(render_event_card(ev, show_json) for ev in list(st.session_state.event_log)[:20]),
-            unsafe_allow_html=True
-        )
+        try:
+            # Filter out any invalid events
+            valid_events = [ev for ev in list(st.session_state.event_log)[:20] if isinstance(ev, dict) and 'status' in ev]
+            feed_ph.markdown(
+                "".join(render_event_card(ev, show_json) for ev in valid_events),
+                unsafe_allow_html=True
+            )
+        except Exception as e:
+            feed_ph.error(f"Error rendering feed: {str(e)}")
     
     # Main streaming loop
     if st.session_state.stream_running:
