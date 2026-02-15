@@ -435,6 +435,12 @@ def kafka_tab():
         "Mostly Healthy":  {"critical": 0.05, "high": 0.10, "medium": 0.25, "low": 0.60},
     }
 
+    # ── KEY FIX: no blocking for-loop ──────────────────────────────────────
+    # Instead of looping with time.sleep() (which blocks all button clicks),
+    # we do ONE tick per fragment rerun, then call st.rerun() to do the next.
+    # This means Stop/Start buttons can fire between ticks — they always work.
+    # ───────────────────────────────────────────────────────────────────────
+
     if st.session_state.stream_running:
         pw       = PROFILE_WEIGHTS[risk_filter]
         profiles = list(pw.keys())
@@ -446,69 +452,65 @@ def kafka_tab():
             "● STREAMING LIVE</div>", unsafe_allow_html=True
         )
 
-        for tick in range(200):
-            if not st.session_state.stream_running:
-                break
+        # ── ONE tick ──
+        tick_critical = 0
+        tick_num = len(st.session_state.throughput_history)  # use history length as tick counter
 
-            tick_critical = 0
-            for _ in range(batch_size):
-                profile = random.choices(profiles, weights=weights, k=1)[0]
-                event   = generate_kafka_event(profile)
-                st.session_state.event_log.appendleft(event)
-                lbl = event["payload"]["risk_label"]
-                st.session_state.stream_stats["total"]    += 1
-                st.session_state.stream_stats[lbl.lower()] += 1
-                if lbl == "CRITICAL":
-                    tick_critical += 1
+        for _ in range(batch_size):
+            profile = random.choices(profiles, weights=weights, k=1)[0]
+            event   = generate_kafka_event(profile)
+            st.session_state.event_log.appendleft(event)
+            lbl = event["payload"]["risk_label"]
+            st.session_state.stream_stats["total"]    += 1
+            st.session_state.stream_stats[lbl.lower()] += 1
+            if lbl == "CRITICAL":
+                tick_critical += 1
 
-            st.session_state.throughput_history.append(
-                {"tick": tick, "eps": batch_size / delay, "crit": tick_critical}
-            )
-
-            # Update metrics
-            s = st.session_state.stream_stats
-            stats_ph.metric("📨 Total Events", f"{s['total']:,}")
-            crit_ph.metric("🔴 Critical",   f"{s['critical']:,}",
-                           delta=f"{s['critical']/max(s['total'],1)*100:.1f}%", delta_color="inverse")
-            watch_ph.metric("🟠 Watchlist", f"{s['watchlist']:,}",
-                            delta=f"{s['watchlist']/max(s['total'],1)*100:.1f}%", delta_color="off")
-            health_ph.metric("🟢 Healthy",  f"{s['healthy']:,}",
-                             delta=f"{s['healthy']/max(s['total'],1)*100:.1f}%", delta_color="normal")
-
-            # Throughput chart
-            if len(st.session_state.throughput_history) > 1:
-                th_df = pd.DataFrame(list(st.session_state.throughput_history))
-                fig_th = go.Figure()
-                fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["eps"],
-                    mode="lines", fill="tozeroy", line=dict(color="#00ff88", width=2), name="Events/sec"))
-                fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["crit"],
-                    mode="lines", line=dict(color="#ff4444", width=1.5, dash="dot"), name="Critical/tick"))
-                fig_th.update_layout(
-                    height=130, margin=dict(t=10, b=10, l=40, r=10),
-                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                    font=dict(color="white", size=10), showlegend=True,
-                    legend=dict(orientation="h", y=1.2, font=dict(size=9)),
-                    xaxis=dict(showgrid=False, zeroline=False),
-                    yaxis=dict(showgrid=True, gridcolor="#222", zeroline=False),
-                )
-                tput_ph.plotly_chart(fig_th, use_container_width=True)
-
-            # Event feed
-            feed_ph.markdown(
-                "".join(render_event_card(ev, show_json) for ev in list(st.session_state.event_log)[:20]),
-                unsafe_allow_html=True
-            )
-
-            time.sleep(delay)
-
-        st.session_state.stream_running = False
-        status_ph.markdown(
-            "<div style='padding:10px;background:#33333388;border:1px solid #555;"
-            "border-radius:6px;text-align:center;font-family:monospace;color:#888;'>"
-            "■ STOPPED</div>", unsafe_allow_html=True
+        st.session_state.throughput_history.append(
+            {"tick": tick_num, "eps": batch_size / delay, "crit": tick_critical}
         )
-        render_static_metrics()
-        render_feed()
+
+        # Update metrics
+        s = st.session_state.stream_stats
+        stats_ph.metric("📨 Total Events", f"{s['total']:,}")
+        crit_ph.metric("🔴 Critical",   f"{s['critical']:,}",
+                       delta=f"{s['critical']/max(s['total'],1)*100:.1f}%", delta_color="inverse")
+        watch_ph.metric("🟠 Watchlist", f"{s['watchlist']:,}",
+                        delta=f"{s['watchlist']/max(s['total'],1)*100:.1f}%", delta_color="off")
+        health_ph.metric("🟢 Healthy",  f"{s['healthy']:,}",
+                         delta=f"{s['healthy']/max(s['total'],1)*100:.1f}%", delta_color="normal")
+
+        # Throughput chart
+        if len(st.session_state.throughput_history) > 1:
+            th_df = pd.DataFrame(list(st.session_state.throughput_history))
+            fig_th = go.Figure()
+            fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["eps"],
+                mode="lines", fill="tozeroy", line=dict(color="#00ff88", width=2), name="Events/sec"))
+            fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["crit"],
+                mode="lines", line=dict(color="#ff4444", width=1.5, dash="dot"), name="Critical/tick"))
+            fig_th.update_layout(
+                height=130, margin=dict(t=10, b=10, l=40, r=10),
+                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(color="white", size=10), showlegend=True,
+                legend=dict(orientation="h", y=1.2, font=dict(size=9)),
+                xaxis=dict(showgrid=False, zeroline=False),
+                yaxis=dict(showgrid=True, gridcolor="#222", zeroline=False),
+            )
+            tput_ph.plotly_chart(fig_th, use_container_width=True)
+
+        # Event feed
+        feed_ph.markdown(
+            "".join(render_event_card(ev, show_json) for ev in list(st.session_state.event_log)[:20]),
+            unsafe_allow_html=True
+        )
+
+        # Auto-stop after 200 ticks
+        if tick_num >= 200:
+            st.session_state.stream_running = False
+        else:
+            # Sleep then trigger next tick — fragment-only rerun, Tab 1 untouched
+            time.sleep(delay)
+            st.rerun(scope="fragment")
 
     else:
         status_ph.markdown(
