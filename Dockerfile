@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the app code and model files
 COPY .streamlit .streamlit
-COPY bh.py .
+COPY sanjeevani.py .
 COPY features.pkl .
 COPY model-3.pkl .
 

@@ -1,4 +1,4 @@
-#  RiskPulse AI: Pre-Delinquency Intervention Engine
+#  Sanjeevani AI: Pre-Delinquency Intervention Engine
 
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -149,40 +149,6 @@ MLflow / BentoML     → Model versioning & serving
 - pip package manager
 - Git (for cloning repository)
 
-### Step 1: Clone the Repository
-```bash
-git clone https://github.com/YOUR_USERNAME/Pragya.git
-cd Pragya
-```
-
-### Step 2: Create Virtual Environment (Recommended)
-```bash
-# Using venv
-python -m venv venv
-
-# Activate on Windows
-venv\Scripts\activate
-
-# Activate on macOS/Linux
-source venv/bin/activate
-```
-
-### Step 3: Install Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-**Note**: For full SHAP explainability features, also install:
-```bash
-pip install shap
-```
-
-The application will work without SHAP (falling back to rule-based explanations), but SHAP is highly recommended for production deployments.
-
-### Step 4: Verify Installation
-```bash
-python -c "import xgboost, streamlit, plotly; print('All dependencies installed successfully!')"
-```
 
 ### Feature Categories
 
@@ -236,7 +202,7 @@ Hyperparameters:
 
 ### SHAP Explainability
 
-RiskPulse AI uses **SHAP (SHapley Additive exPlanations)** for truly explainable AI:
+Sanjeevani AI uses **SHAP (SHapley Additive exPlanations)** for truly explainable AI:
 
 #### What is SHAP?
 - **Game Theory Based**: Uses Shapley values from cooperative game theory
