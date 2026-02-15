@@ -408,9 +408,8 @@ def render_event_card(event: dict, show_json: bool = False) -> str:
 
 
 # ==========================================
-# 3. KAFKA TAB (Fragment) - STABLE VERSION
+# 3. KAFKA TAB - NO FRAGMENT (For Responsive Buttons)
 # ==========================================
-@st.fragment
 def kafka_tab():
     st.title("📡 Live Kafka Transaction Stream")
     st.markdown(
@@ -459,16 +458,13 @@ def kafka_tab():
 
     if start_btn:
         st.session_state.stream_running = True
-        st.rerun()  # Rerun to start the stream
     if stop_btn:
         st.session_state.stream_running = False
-        st.rerun()  # Rerun to stop the stream immediately
 
     if st.button("🗑️ Clear Log"):
         st.session_state.event_log.clear()
         st.session_state.stream_stats       = {"total": 0, "critical": 0, "watchlist": 0, "healthy": 0}
         st.session_state.throughput_history = deque(maxlen=30)
-        st.rerun()
 
     show_json = st.checkbox("🔬 Show raw JSON payload", value=False)
 
