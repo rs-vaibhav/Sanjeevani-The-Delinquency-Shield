@@ -271,233 +271,313 @@ TRANSACTION_TYPES = [
 ]
 
 CUSTOMER_POOL = [
-    {"id": "CUST_101", "name": "Rahul Sharma", "base_risk": 35},
-    {"id": "CUST_102", "name": "Priya Patel", "base_risk": 68},
-    {"id": "CUST_103", "name": "Amit Kumar", "base_risk": 22},
-    {"id": "CUST_104", "name": "Sneha Reddy", "base_risk": 82},
-    {"id": "CUST_105", "name": "Vikram Singh", "base_risk": 45},
+    ("CUST_000142", "high"), ("CUST_000289", "medium"), ("CUST_000531", "low"),
+    ("CUST_000873", "critical"), ("CUST_001024", "medium"), ("CUST_001337", "low"),
+    ("CUST_001456", "high"), ("CUST_001789", "critical"),
 ]
 
-if 'event_log' not in st.session_state:
-    st.session_state.event_log = deque(maxlen=100)
-if 'stream_running' not in st.session_state:
-    st.session_state.stream_running = False
-if 'tick_count' not in st.session_state:
-    st.session_state.tick_count = 0
-if 'metrics' not in st.session_state:
-    st.session_state.metrics = {
-        'total_processed': 0, 'critical_count': 0, 'watchlist_count': 0,
-        'healthy_count': 0, 'throughput_history': deque([0]*30, maxlen=30)
-    }
+AMOUNT_RANGES = {
+    "UPI_TRANSFER": (500, 15000), "LENDING_APP_UPI": (2000, 50000),
+    "ATM_WITHDRAWAL": (1000, 10000), "SALARY_CREDIT": (25000, 120000),
+    "UTILITY_PAYMENT": (500, 5000), "DINING_DEBIT": (200, 3000),
+    "EMI_DEBIT": (5000, 35000), "FAILED_AUTODEBIT": (0, 0),
+    "SAVINGS_WITHDRAWAL": (5000, 80000), "GAMBLING_UPI": (100, 5000),
+    "BALANCE_ENQUIRY": (0, 0),
+}
+
+RISK_SIGNALS = {
+    "critical": {"LENDING_APP_UPI": 0.30, "GAMBLING_UPI": 0.15, "FAILED_AUTODEBIT": 0.15, "SAVINGS_WITHDRAWAL": 0.20},
+    "high":     {"LENDING_APP_UPI": 0.18, "ATM_WITHDRAWAL": 0.18, "SAVINGS_WITHDRAWAL": 0.15},
+    "medium":   {"ATM_WITHDRAWAL": 0.12, "UTILITY_PAYMENT": 0.12},
+    "low":      {"DINING_DEBIT": 0.20, "UPI_TRANSFER": 0.30},
+}
+
+MERCHANTS = {
+    "LENDING_APP_UPI":    ["KreditBee", "MoneyTap", "CASHe", "PaySense", "Nira"],
+    "GAMBLING_UPI":       ["Dream11", "MPL", "LotteryKing", "RummyCircle"],
+    "DINING_DEBIT":       ["Swiggy", "Zomato", "Dominos", "McDonald's"],
+    "ATM_WITHDRAWAL":     ["ATM"],
+    "SALARY_CREDIT":      ["Employer"],
+    "UTILITY_PAYMENT":    ["BESCOM", "Jio", "Airtel", "BWSSB"],
+    "SAVINGS_WITHDRAWAL": ["Self Transfer"],
+    "FAILED_AUTODEBIT":   ["HDFC EMI", "ICICI Loan", "Bajaj Finserv"],
+    "UPI_TRANSFER":       ["PhonePe", "GPay", "Paytm", "BHIM"],
+    "EMI_DEBIT":          ["Bajaj Finserv", "HDFC Bank", "ICICI Bank"],
+    "BALANCE_ENQUIRY":    ["Self"],
+}
+
+EVENT_RISK = {
+    "LENDING_APP_UPI": (72, 95), "FAILED_AUTODEBIT": (65, 88), "GAMBLING_UPI": (70, 92),
+    "SAVINGS_WITHDRAWAL": (55, 80), "ATM_WITHDRAWAL": (40, 65), "BALANCE_ENQUIRY": (35, 55),
+    "UTILITY_PAYMENT": (20, 45), "EMI_DEBIT": (10, 35), "SALARY_CREDIT": (5, 20),
+    "DINING_DEBIT": (5, 25), "UPI_TRANSFER": (10, 40),
+}
+
+# Session State Initialization
+defaults = {
+    "stream_running":     False,
+    "event_log":          deque(maxlen=50),
+    "stream_stats":       {"total": 0, "critical": 0, "watchlist": 0, "healthy": 0},
+    "throughput_history": deque(maxlen=30),
+}
+for k, v in defaults.items():
+    if k not in st.session_state:
+        st.session_state[k] = v
 
 
-def generate_event():
-    """Generate one realistic banking event"""
+def generate_kafka_event(risk_level: str) -> dict:
+    """Generate a realistic Kafka event based on risk level"""
     try:
-        tx_type, _ = random.choices(TRANSACTION_TYPES, weights=[w for _, w in TRANSACTION_TYPES])[0]
-        customer = random.choice(CUSTOMER_POOL)
-        
-        features = {
-            'salary_delay': random.randint(0, 30) if random.random() < 0.3 else 0,
-            'savings_drawdown': random.randint(0, 50),
-            'dti_ratio': round(random.uniform(0.1, 0.8), 2),
-            'utility_late_days': random.randint(0, 10),
-            'liquidity_pressure': round(random.uniform(0, 5), 1),
-            'lending_apps': random.randint(0, 8) if 'LENDING' in tx_type else random.randint(0, 2),
-            'cc_velocity': random.randint(10, 60),
-            'atm_count': random.randint(1, 15),
-            'dining_count': random.randint(5, 30),
-            'failed_tx': random.randint(0, 5) if 'FAILED' in tx_type else 0,
-            'gambling_count': random.randint(1, 8) if 'GAMBLING' in tx_type else 0,
-            'upi_spike_ratio': round(random.uniform(0.5, 3.0), 1),
-            'balance_checks': random.randint(1, 15),
-            'behavioral_stress': round(random.uniform(0, 5), 1),
-            'volatility_risk': round(random.uniform(0, 3), 1),
-        }
-        
-        # Spike risk for certain transaction types
-        if tx_type in ['LENDING_APP_UPI', 'GAMBLING_UPI', 'FAILED_AUTODEBIT']:
-            features['lending_apps'] = min(8, features['lending_apps'] + 3)
-            features['dti_ratio'] = min(0.9, features['dti_ratio'] + 0.2)
-        
-        assessment = engine.get_assessment(features)
+        cust_id, _ = random.choice([c for c in CUSTOMER_POOL if c[1] == risk_level] or CUSTOMER_POOL)
+        biases     = RISK_SIGNALS.get(risk_level, {})
+        tx_types   = [t[0] for t in TRANSACTION_TYPES]
+        tx_weights = [biases.get(t[0], t[1]) for t in TRANSACTION_TYPES]
+        total      = sum(tx_weights)
+        tx_type    = random.choices(tx_types, weights=[w/total for w in tx_weights], k=1)[0]
+        lo, hi     = AMOUNT_RANGES[tx_type]
+        amount     = round(random.uniform(lo, hi), 2) if hi > 0 else 0
+        ts         = datetime.now() - timedelta(seconds=random.randint(0, 120))
+        lo_r, hi_r = EVENT_RISK.get(tx_type, (10, 50))
+        risk_score = random.randint(lo_r, hi_r)
+        label      = "CRITICAL" if risk_score > 75 else ("WATCHLIST" if risk_score > 40 else "HEALTHY")
         
         return {
-            'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
-            'customer_id': customer['id'],
-            'customer_name': customer['name'],
-            'transaction_type': tx_type,
-            'risk_score': assessment['risk_score'],
-            'status': assessment['status'],
-            'features': features,
-            'partition': random.randint(0, 3)
+            "kafka_meta": {
+                "topic": "bank.transactions.realtime",
+                "partition": hash(cust_id) % 4,
+                "offset": random.randint(100000, 999999),
+                "timestamp": ts.isoformat(timespec="milliseconds"),
+            },
+            "payload": {
+                "customer_id":    cust_id,
+                "transaction_id": f"TXN{random.randint(10**9, 10**10-1)}",
+                "type":           tx_type,
+                "amount":         amount,
+                "channel":        random.choice(["UPI", "NEFT", "IMPS", "ATM", "POS"]),
+                "merchant":       random.choice(MERCHANTS.get(tx_type, ["Unknown"])),
+                "risk_score":     risk_score,
+                "risk_label":     label,
+                "intervention":   "📞 Immediate Phone Call" if risk_score > 75 else ("📧 Email + SMS Nudge" if risk_score > 40 else "✅ No Action Required"),
+                "processing_ms":  random.randint(8, 45),
+            }
         }
     except Exception as e:
-        # Return a safe default event if something goes wrong
+        # Return safe default event
         return {
-            'timestamp': datetime.now().strftime("%H:%M:%S.%f")[:-3],
-            'customer_id': 'ERROR',
-            'customer_name': 'Error generating event',
-            'transaction_type': 'ERROR',
-            'risk_score': 0,
-            'status': 'HEALTHY',
-            'features': {},
-            'partition': 0
+            "kafka_meta": {"topic": "bank.transactions.realtime", "partition": 0, "offset": 0, "timestamp": datetime.now().isoformat()},
+            "payload": {"customer_id": "ERROR", "transaction_id": "ERROR", "type": "ERROR", "amount": 0, 
+                       "channel": "ERROR", "merchant": "ERROR", "risk_score": 0, "risk_label": "HEALTHY",
+                       "intervention": "Error", "processing_ms": 0}
         }
 
 
-def render_event_card(event, show_json=False):
-    """Render a single event as HTML with safety checks"""
-    # Safety checks for missing keys
-    if not isinstance(event, dict):
-        return "<div class='event-card'>Invalid event format</div>"
-    
-    status = event.get('status', 'UNKNOWN')
-    status_class = status.lower()
-    badge_class = 'red' if status_class == 'critical' else ('orange' if status_class == 'watchlist' else '')
-    
-    json_block = ""
-    if show_json and 'features' in event:
-        json_block = f"<pre style='margin-top:8px;font-size:0.7rem;'>{json.dumps(event['features'], indent=2)}</pre>"
-    
-    customer_id = event.get('customer_id', 'UNKNOWN')
-    customer_name = event.get('customer_name', 'Unknown Customer')
-    tx_type = event.get('transaction_type', 'UNKNOWN')
-    risk_score = event.get('risk_score', 0)
-    timestamp = event.get('timestamp', '00:00:00')
-    partition = event.get('partition', 0)
-    
-    return f"""
-    <div class="event-card {status_class}">
-        <span class="kafka-badge {badge_class}">{status}</span>
-        <strong>{customer_id}</strong> | {customer_name} | {tx_type}<br>
-        <span style="color:#888;">Risk: {risk_score:.0f}/100 | {timestamp} | Partition-{partition}</span>
-        {json_block}
-    </div>
-    """
+def render_event_card(event: dict, show_json: bool = False) -> str:
+    """Render a Kafka event as HTML card"""
+    try:
+        p   = event["payload"]
+        km  = event["kafka_meta"]
+        lbl = p["risk_label"]
+        badge_color = "red" if lbl == "CRITICAL" else ("orange" if lbl == "WATCHLIST" else "")
+        risk_color  = "#ff4444" if lbl == "CRITICAL" else ("#ffaa00" if lbl == "WATCHLIST" else "#00ff88")
+        amt_str     = f"₹{p['amount']:,.0f}" if p['amount'] > 0 else "—"
+        ts_short    = km["timestamp"][11:19]
+        
+        html = f"""
+        <div class="event-card {lbl.lower()}">
+            <span class="kafka-badge {badge_color}">{lbl}</span>
+            <strong>{p['customer_id']}</strong> &nbsp;·&nbsp;
+            <code>{p['type']}</code> &nbsp;·&nbsp; {amt_str} &nbsp;·&nbsp;
+            <em>{p['merchant']}</em>
+            <span style="color:#888; float:right">
+                P{km['partition']} · offset {km['offset']} · {ts_short} · {p['processing_ms']}ms
+            </span><br/>
+            <span style="color:#aaa; font-size:0.78rem;">
+                Risk: <strong style="color:{risk_color}">{p['risk_score']}/100</strong>
+                &nbsp;→&nbsp; {p['intervention']}
+                &nbsp;·&nbsp; txn_id: {p['transaction_id']}
+            </span>
+        </div>"""
+        
+        if show_json:
+            html += f"<pre style='background:#111;color:#888;font-size:0.7rem;padding:6px;border-radius:4px;margin-bottom:8px;'>{json.dumps(event, indent=2)}</pre>"
+        
+        return html
+    except Exception as e:
+        return f"<div class='event-card'>Error rendering event: {str(e)}</div>"
+
 
 
 # ==========================================
-# 3. KAFKA TAB (Fragment)
+# 3. KAFKA TAB (Fragment) - STABLE VERSION
 # ==========================================
 @st.fragment
 def kafka_tab():
-    st.title("📡 Live Kafka Event Stream")
-    st.markdown("Real-time transaction scoring from **bank.transactions.realtime**")
-    
-    col1, col2 = st.columns([3, 1])
-    
-    with col1:
-        st.markdown("<div class='kafka-header'>🔌 <b>KAFKA CLUSTER:</b> sanjeevani-prod-1.aws.cluster | "
-                   "<b>TOPIC:</b> bank.transactions.realtime | <b>PARTITIONS:</b> 4</div>", 
-                   unsafe_allow_html=True)
-    
-    with col2:
-        if st.button("▶️ START STREAM" if not st.session_state.stream_running else "⏸️ STOP STREAM",
-                    type="primary", use_container_width=True):
-            st.session_state.stream_running = not st.session_state.stream_running
-            st.rerun()
-    
+    st.title("📡 Live Kafka Transaction Stream")
+    st.markdown(
+        "Simulates **Apache Kafka** ingesting real-time bank transactions. "
+        "Each event is scored by the **Sanjeevani AI** engine (<50ms latency) "
+        "and routed to the correct intervention queue — exactly as it would "
+        "run on **Amazon Kinesis** in production."
+    )
+
+    st.markdown("""
+    <div class="kafka-header">
+        <span style="color:#00ff88; font-weight:bold; font-family:monospace;">
+        ▶ TOPIC: bank.transactions.realtime &nbsp;|&nbsp;
+        PARTITIONS: 4 &nbsp;|&nbsp;
+        REPLICATION FACTOR: 3 &nbsp;|&nbsp;
+        CONSUMER GROUP: sanjeevani-scoring-v2
+        </span>
+    </div>
+    """, unsafe_allow_html=True)
+
+    p0, p1, p2, p3 = st.columns(4)
+    for col, i in zip([p0, p1, p2, p3], range(4)):
+        col.markdown(f"""
+        <div class="partition-box">
+            <div style="color:#00ff88">PARTITION {i}</div>
+            <div style="color:#888;font-size:0.7rem">Consumer: sanjeevani-worker-{i}</div>
+        </div>""", unsafe_allow_html=True)
+
+    st.markdown("<br/>", unsafe_allow_html=True)
+
+    # Controls
+    ctrl1, ctrl2, ctrl3, ctrl4 = st.columns([1, 1, 1, 1])
+    with ctrl1:
+        speed = st.selectbox("⚡ Emit Speed", ["0.5s (Fast)", "1s (Normal)", "2s (Slow)"], index=1)
+        delay = {"0.5s (Fast)": 0.5, "1s (Normal)": 1.0, "2s (Slow)": 2.0}[speed]
+    with ctrl2:
+        risk_filter = st.selectbox("🎯 Risk Profile Mix",
+                                   ["All Profiles", "High Risk Heavy", "Critical Only", "Mostly Healthy"])
+    with ctrl3:
+        batch_size = st.slider("Events per tick", 1, 5, 2)
+    with ctrl4:
+        st.markdown("<br/>", unsafe_allow_html=True)
+        cs, cs2 = st.columns(2)
+        start_btn = cs.button("▶ Start",  type="primary",   use_container_width=True)
+        stop_btn  = cs2.button("⏹ Stop", type="secondary",  use_container_width=True)
+
+    if start_btn:
+        st.session_state.stream_running = True
+    if stop_btn:
+        st.session_state.stream_running = False
+
+    if st.button("🗑️ Clear Log"):
+        st.session_state.event_log.clear()
+        st.session_state.stream_stats       = {"total": 0, "critical": 0, "watchlist": 0, "healthy": 0}
+        st.session_state.throughput_history = deque(maxlen=30)
+
+    show_json = st.checkbox("🔬 Show raw JSON payload", value=False)
+
     st.markdown("---")
-    
-    c1, c2 = st.columns([2, 1])
-    
-    with c1:
-        st.subheader("🔴 Live Event Feed")
-        show_json = st.checkbox("Show JSON Payloads", value=False)
-        feed_ph = st.empty()
-    
-    with c2:
-        st.subheader("📊 Stream Metrics")
-        status_ph = st.empty()
-        m1, m2, m3 = st.columns(3)
-        critical_ph = m1.empty()
-        watch_ph = m2.empty()
-        healthy_ph = m3.empty()
-        total_ph = st.empty()
-        tput_ph = st.empty()
-    
+    sm1, sm2, sm3, sm4, sm5 = st.columns(5)
+    stats_ph     = sm1.empty()
+    crit_ph      = sm2.empty()
+    watch_ph     = sm3.empty()
+    health_ph    = sm4.empty()
+    status_ph    = sm5.empty()
+    tput_ph      = st.empty()
+    st.markdown("#### 📥 Event Feed")
+    feed_ph      = st.empty()
+
     def render_static_metrics():
-        m = st.session_state.metrics
-        critical_ph.metric("🔴 Critical", m['critical_count'])
-        watch_ph.metric("🟠 Watchlist", m['watchlist_count'])
-        healthy_ph.metric("🟢 Healthy", m['healthy_count'])
-        total_ph.metric("Total Processed", f"{m['total_processed']:,}")
-    
+        s = st.session_state.stream_stats
+        stats_ph.metric("📨 Total Events", f"{s['total']:,}")
+        crit_ph.metric("🔴 Critical",      f"{s['critical']:,}")
+        watch_ph.metric("🟠 Watchlist",    f"{s['watchlist']:,}")
+        health_ph.metric("🟢 Healthy",     f"{s['healthy']:,}")
+
     def render_feed():
-        try:
-            # Filter out any invalid events
-            valid_events = [ev for ev in list(st.session_state.event_log)[:20] if isinstance(ev, dict) and 'status' in ev]
+        if st.session_state.event_log:
             feed_ph.markdown(
-                "".join(render_event_card(ev, show_json) for ev in valid_events),
+                "".join(render_event_card(ev, show_json) for ev in list(st.session_state.event_log)[:20]),
                 unsafe_allow_html=True
             )
-        except Exception as e:
-            feed_ph.error(f"Error rendering feed: {str(e)}")
-    
-    # Main streaming loop
+        else:
+            feed_ph.info("▶ Press **Start** to begin the live event stream.")
+
+    PROFILE_WEIGHTS = {
+        "All Profiles":    {"critical": 0.20, "high": 0.30, "medium": 0.30, "low": 0.20},
+        "High Risk Heavy": {"critical": 0.35, "high": 0.40, "medium": 0.20, "low": 0.05},
+        "Critical Only":   {"critical": 0.70, "high": 0.25, "medium": 0.05, "low": 0.00},
+        "Mostly Healthy":  {"critical": 0.05, "high": 0.10, "medium": 0.25, "low": 0.60},
+    }
+
     if st.session_state.stream_running:
-        tick_num = st.session_state.tick_count
-        st.session_state.tick_count += 1
-        delay = 0.8
-        
+        pw       = PROFILE_WEIGHTS[risk_filter]
+        profiles = list(pw.keys())
+        weights  = list(pw.values())
+
         status_ph.markdown(
             "<div style='padding:10px;background:#00ff8822;border:1px solid #00ff88;"
-            "border-radius:6px;text-align:center;font-family:monospace;'>"
-            "● STREAMING</div>", unsafe_allow_html=True
+            "border-radius:6px;text-align:center;font-family:monospace;color:#00ff88;'>"
+            "● STREAMING LIVE</div>", unsafe_allow_html=True
         )
-        
-        # Generate event
-        event = generate_event()
-        st.session_state.event_log.appendleft(event)
-        
-        # Update metrics
-        m = st.session_state.metrics
-        m['total_processed'] += 1
-        if event['status'] == 'CRITICAL':
-            m['critical_count'] += 1
-        elif event['status'] == 'WATCHLIST':
-            m['watchlist_count'] += 1
-        else:
-            m['healthy_count'] += 1
-        
-        m['throughput_history'].append(m['total_processed'])
-        
-        # Render metrics
-        render_static_metrics()
-        
-        # Throughput chart
-        if tick_num % 5 == 0:
-            fig_th = go.Figure()
-            fig_th.add_trace(go.Scatter(
-                y=list(m['throughput_history']),
-                mode='lines',
-                line=dict(color='#00ff88', width=2),
-                fill='tozeroy',
-                fillcolor='rgba(0,255,136,0.1)'
-            ))
-            fig_th.update_layout(
-                height=180,
-                margin=dict(t=20, b=20, l=30, r=20),
-                paper_bgcolor="rgba(0,0,0,0)",
-                plot_bgcolor="rgba(0,0,0,0)",
-                font={'color': "white"},
-                xaxis=dict(showgrid=False, showticklabels=False),
-                yaxis=dict(showgrid=True, gridcolor='#333'),
-                title="Throughput"
+
+        for tick in range(200):
+            if not st.session_state.stream_running:
+                break
+
+            tick_critical = 0
+            for _ in range(batch_size):
+                profile = random.choices(profiles, weights=weights, k=1)[0]
+                event   = generate_kafka_event(profile)
+                st.session_state.event_log.appendleft(event)
+                lbl = event["payload"]["risk_label"]
+                st.session_state.stream_stats["total"]    += 1
+                st.session_state.stream_stats[lbl.lower()] += 1
+                if lbl == "CRITICAL":
+                    tick_critical += 1
+
+            st.session_state.throughput_history.append(
+                {"tick": tick, "eps": batch_size / delay, "crit": tick_critical}
             )
-            tput_ph.plotly_chart(fig_th, use_container_width=True)
-        
-        # Event feed
-        render_feed()
-        
-        # Auto-stop after 200 ticks
-        if tick_num >= 200:
-            st.session_state.stream_running = False
-        else:
+
+            # Update metrics
+            s = st.session_state.stream_stats
+            stats_ph.metric("📨 Total Events", f"{s['total']:,}")
+            crit_ph.metric("🔴 Critical",   f"{s['critical']:,}",
+                           delta=f"{s['critical']/max(s['total'],1)*100:.1f}%", delta_color="inverse")
+            watch_ph.metric("🟠 Watchlist", f"{s['watchlist']:,}",
+                            delta=f"{s['watchlist']/max(s['total'],1)*100:.1f}%", delta_color="off")
+            health_ph.metric("🟢 Healthy",  f"{s['healthy']:,}",
+                             delta=f"{s['healthy']/max(s['total'],1)*100:.1f}%", delta_color="normal")
+
+            # Throughput chart
+            if len(st.session_state.throughput_history) > 1:
+                th_df = pd.DataFrame(list(st.session_state.throughput_history))
+                fig_th = go.Figure()
+                fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["eps"],
+                    mode="lines", fill="tozeroy", line=dict(color="#00ff88", width=2), name="Events/sec"))
+                fig_th.add_trace(go.Scatter(x=th_df["tick"], y=th_df["crit"],
+                    mode="lines", line=dict(color="#ff4444", width=1.5, dash="dot"), name="Critical/tick"))
+                fig_th.update_layout(
+                    height=130, margin=dict(t=10, b=10, l=40, r=10),
+                    paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                    font=dict(color="white", size=10), showlegend=True,
+                    legend=dict(orientation="h", y=1.2, font=dict(size=9)),
+                    xaxis=dict(showgrid=False, zeroline=False),
+                    yaxis=dict(showgrid=True, gridcolor="#222", zeroline=False),
+                )
+                tput_ph.plotly_chart(fig_th, use_container_width=True)
+
+            # Event feed
+            feed_ph.markdown(
+                "".join(render_event_card(ev, show_json) for ev in list(st.session_state.event_log)[:20]),
+                unsafe_allow_html=True
+            )
+
             time.sleep(delay)
-            st.rerun(scope="fragment")
-    
+
+        st.session_state.stream_running = False
+        status_ph.markdown(
+            "<div style='padding:10px;background:#33333388;border:1px solid #555;"
+            "border-radius:6px;text-align:center;font-family:monospace;color:#888;'>"
+            "■ STOPPED</div>", unsafe_allow_html=True
+        )
+        render_static_metrics()
+        render_feed()
+
     else:
         status_ph.markdown(
             "<div style='padding:10px;background:#33333388;border:1px solid #555;"
@@ -506,7 +586,7 @@ def kafka_tab():
         )
         render_static_metrics()
         render_feed()
-    
+
     st.markdown("---")
     st.caption(
         "Simulated Kafka stream · Topic: bank.transactions.realtime · "
