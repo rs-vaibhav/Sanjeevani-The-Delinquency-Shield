@@ -16,7 +16,7 @@ try:
 except ImportError:
     SHAP_AVAILABLE = False
 
-st.set_page_config(page_title="RiskPulse AI | Business Impact Dashboard", layout="wide", page_icon="🛡️")
+st.set_page_config(page_title="Sanjeevani AI | Business Impact Dashboard", layout="wide", page_icon="🛡️")
 
 st.markdown("""
 <style>
@@ -539,7 +539,7 @@ with tab1:
         st.plotly_chart(fig_sim, use_container_width=True)
 
     st.markdown("---")
-    st.caption("RiskPulse AI v2.1 | Architecture: Streamlit + XGBoost + SHAP | Compliance: FCA Consumer Duty")
+    st.caption("Sanjeevani AI v2.1 | Architecture: Streamlit + XGBoost + SHAP | Compliance: FCA Consumer Duty")
 
 
 # ==========================================
