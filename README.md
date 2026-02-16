@@ -557,13 +557,13 @@ Assumptions:
 - Loss Given Default: 18% (post-collection)
 - Intervention Coverage: 80% of at-risk customers
 
-Baseline (No RiskPulse AI):
+Baseline (No Sanjeevani AI):
   Expected Defaults: 4,200 customers
   Expected Loss: 4,200 × ₹500K × 18% = ₹378 Cr
   Collection Costs: ₹378 Cr × 18% = ₹68 Cr
   Total Impact: ₹446 Cr annually
 
-With RiskPulse AI:
+With Sanjeevani AI:
   At-Risk Identified: 4,200
   Intervention Coverage: 3,360 (80%)
     - CRITICAL (30%): 1,008 customers → 65% prevented = 655
@@ -586,13 +586,13 @@ ROI: 22,957% (₹143.38 Cr / ₹6.22 Lakh)
 ### Customer Lifetime Value Impact
 
 ```
-Without RiskPulse AI:
+Without Sanjeevani AI:
   - Default rate: 4.2%
   - Customer loss: 4,200 customers
   - Average CLV: ₹2 Lakh (5-year revenue)
   - CLV loss: 4,200 × ₹2 Lakh = ₹840 Cr over 5 years
 
-With RiskPulse AI:
+With Sanjeevani AI:
   - Default rate: 2.6%
   - Customer loss: 2,604 customers
   - Customers retained: 1,596
@@ -641,29 +641,6 @@ SOFTWARE.
 ### Author
 **Vaibhav Gupta**
 
-### Documentation
-- [Full Documentation](https://github.com/YOUR_USERNAME/Pragya/wiki)
-- [API Reference](https://github.com/YOUR_USERNAME/Pragya/wiki/API)
-- [Tutorial Videos](https://www.youtube.com/playlist?list=your-playlist)
-
-### Community
-- [GitHub Issues](https://github.com/YOUR_USERNAME/Pragya/issues)
-- [Discussions](https://github.com/YOUR_USERNAME/Pragya/discussions)
-- [Stack Overflow Tag](https://stackoverflow.com/questions/tagged/riskpulse-ai)
-
-### Citation
-If you use RiskPulse AI in your research or work, please cite:
-
-```bibtex
-@software{riskpulse_ai_2026,
-  author = {Gupta, Vaibhav},
-  title = {RiskPulse AI: Pre-Delinquency Intervention Engine},
-  year = {2026},
-  publisher = {GitHub},
-  url = {https://github.com/YOUR_USERNAME/Pragya}
-}
-```
-
 ---
 
 ## Acknowledgments
@@ -678,7 +655,7 @@ If you use RiskPulse AI in your research or work, please cite:
 
 <div align="center">
 
-**🛡️ Preventing defaults. Preserving dignity. Protecting capital. 🛡️**
+** Preventing defaults. Preserving dignity. Protecting capital. **
 
 [⬆ Back to Top](#-riskpulse-ai-pre-delinquency-intervention-engine)
 
